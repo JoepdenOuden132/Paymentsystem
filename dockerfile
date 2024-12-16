@@ -26,5 +26,5 @@ COPY --from=builder /restapi /restapi
 # Expose the port on which the application will run
 EXPOSE 8080
 
-# Define the command to run the application
+# Define the command to run the application shit
 CMD ["/restapi"]
