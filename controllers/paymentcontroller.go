@@ -13,14 +13,13 @@ import (
 func CreatePayment(c *gin.Context) {
 	var newPayment models.Payment
 
-	// Valideer de binnenkomende JSON
 	if err := c.ShouldBindJSON(&newPayment); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	newPayment.Status = "pending"
-	newPayment.PaymentDate = time.Now().Format("2006-01-02 15:04:05")
+	newPayment.PaymentDate = time.Now().Format("2000-01-01 15:00:00")
 
 	if err := database.DB.Create(&newPayment).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create payment"})
