@@ -2,13 +2,11 @@ package main
 
 import (
 	"main.go/controllers"
-	"main.go/database"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	database.Connect()
 
 	r := gin.Default()
 
