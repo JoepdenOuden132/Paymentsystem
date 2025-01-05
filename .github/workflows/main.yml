@@ -34,3 +34,6 @@ jobs:
             registry-password: ${{ secrets.REGISTRY_PASSWORD }}
             name: aci-sampleapp
             location: 'northeurope'
+            environment-variables: |
+              EVENT_GRID_ENDPOINT=https://eg-01-paymentsystem.northeurope-1.eventgrid.azure.net/api/events
+              EVENT_GRID_KEY=${{ secrets.EVENT_GRID_KEY }}

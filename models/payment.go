@@ -1,7 +1,7 @@
 package models
 
 type Payment struct {
-	ID            uint    `json:"id" gorm:"primaryKey"`
+	ID            uint    `json:"id"`
 	ReservationID uint    `json:"reservation_id" binding:"required"`
 	Amount        float64 `json:"amount" binding:"required"`
 	Currency      string  `json:"currency" binding:"required"`

@@ -3,12 +3,18 @@ package controllers
 import (
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"main.go/database"
 	"main.go/models"
 )
+
+// Simpele slice om betalingen in op te slaan (in-memory opslag)
+var payments []models.Payment
+var mu sync.Mutex // Mutex om concurrente toegang te beheren
+
+var nextID uint = 1 // Simuleer auto-increment ID
 
 func CreatePayment(c *gin.Context) {
 	var newPayment models.Payment
@@ -19,13 +25,15 @@ func CreatePayment(c *gin.Context) {
 		return
 	}
 
+	// Stel de initiële waarden in
+	newPayment.ID = getNextID()
 	newPayment.Status = "pending"
 	newPayment.PaymentDate = time.Now().Format("2006-01-02 15:04:05")
 
-	if err := database.DB.Create(&newPayment).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create payment"})
-		return
-	}
+	// Voeg de nieuwe betaling toe aan de slice
+	mu.Lock()
+	payments = append(payments, newPayment)
+	mu.Unlock()
 
 	go simulatePayment(newPayment.ID)
 
@@ -38,5 +46,21 @@ func simulatePayment(paymentID uint) {
 	rand.Seed(time.Now().UnixNano())
 	randomStatus := statuses[rand.Intn(len(statuses))]
 
-	database.DB.Model(&models.Payment{}).Where("id = ?", paymentID).Update("status", randomStatus)
+	// Update de status van de betaling
+	mu.Lock()
+	for i, payment := range payments {
+		if payment.ID == paymentID {
+			payments[i].Status = randomStatus
+			break
+		}
+	}
+	mu.Unlock()
+}
+
+// Hulpfunctie om het volgende ID te genereren
+func getNextID() uint {
+	mu.Lock()
+	defer mu.Unlock()
+	nextID++
+	return nextID - 1
 }
