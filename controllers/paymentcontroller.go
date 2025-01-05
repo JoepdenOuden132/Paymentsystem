@@ -39,6 +39,12 @@ func CreatePayment(c *gin.Context) {
 	payments = append(payments, newPayment)
 	mu.Unlock()
 
+	go func() {
+		if err := sendEventToEventGrid(newPayment); err != nil {
+			fmt.Printf("Error sending event to Event Grid: %v\n", err)
+		}
+	}()
+
 	go simulatePayment(newPayment.ID)
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Payment is being processed", "payment_id": newPayment.ID})
