@@ -11,8 +11,8 @@ RUN go mod download
 # Copy the entire application source code
 COPY . ./
 
-# Build the Go application
-RUN go build -o /restapi
+# Build the Go application with cross-compilation for Linux
+RUN GOOS=linux GOARCH=amd64 go build -o /restapi
 
 # Use a minimal image for the final runtime environment
 FROM alpine:latest
