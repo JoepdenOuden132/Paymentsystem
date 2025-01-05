@@ -1,8 +1,12 @@
 package controllers
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -63,4 +67,46 @@ func getNextID() uint {
 	defer mu.Unlock()
 	nextID++
 	return nextID - 1
+}
+
+func sendEventToEventGrid(payment models.Payment) error {
+	event := []map[string]interface{}{
+		{
+			"id":          fmt.Sprintf("%d", payment.ID),
+			"eventType":   "Payment.Created",
+			"subject":     "new/payment",
+			"eventTime":   time.Now().Format(time.RFC3339),
+			"data":        payment,
+			"dataVersion": "1.0",
+		},
+	}
+
+	eventJSON, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event: %v", err)
+	}
+
+	eventGridEndpoint := os.Getenv("EVENT_GRID_ENDPOINT") // Zet dit in je container als environment variable
+	eventGridKey := os.Getenv("EVENT_GRID_KEY")           // Zet dit in je container als environment variable
+
+	req, err := http.NewRequest("POST", eventGridEndpoint, bytes.NewBuffer(eventJSON))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("aeg-sas-key", eventGridKey) // Event Grid authenticatie
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("received non-OK response: %v", resp.Status)
+	}
+
+	return nil
 }
