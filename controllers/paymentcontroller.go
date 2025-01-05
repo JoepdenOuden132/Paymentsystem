@@ -95,6 +95,9 @@ func sendEventToEventGrid(payment models.Payment) error {
 	eventGridEndpoint := os.Getenv("EVENT_GRID_ENDPOINT") // Zet dit in je container als environment variable
 	eventGridKey := os.Getenv("EVENT_GRID_KEY")           // Zet dit in je container als environment variable
 
+	fmt.Println("Event Grid Endpoint:", eventGridEndpoint)
+	fmt.Println("Event Grid Key:", eventGridKey)
+
 	req, err := http.NewRequest("POST", eventGridEndpoint, bytes.NewBuffer(eventJSON))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %v", err)
