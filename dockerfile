@@ -1,5 +1,6 @@
 # Use the official Golang image as the builder stage
-FROM golang:1.22.1 AS builder
+# Use the official Golang image as the builder stage
+FROM golang:1.22.1-bullseye AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -11,20 +12,20 @@ RUN go mod download
 # Copy the entire application source code
 COPY . ./
 
-# Build the Go application with cross-compilation for Linux
-RUN GOOS=linux GOARCH=amd64 go build -o /restapi
+# Build the Go application and verify the binary is created
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /restapi && ls -lah /restapi
 
 # Use a minimal image for the final runtime environment
-FROM alpine:latest
+FROM debian:bullseye-slim
 
 # Set the working directory in the runtime container
-WORKDIR /
+WORKDIR /app
 
 # Copy the built binary from the builder image
-COPY --from=builder /restapi /restapi
+COPY --from=builder /restapi /app/restapi
 
 # Expose the port on which the application will run
 EXPOSE 8080
 
-# Define the command to run the application shitj
-CMD ["/restapi"]
+# Define the command to run the application
+CMD ["/app/restapi"]
