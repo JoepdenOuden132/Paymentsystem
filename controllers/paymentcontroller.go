@@ -14,11 +14,10 @@ import (
 	"main.go/models"
 )
 
-// Simpele slice om betalingen in op te slaan (in-memory opslag)
 var payments []models.Payment
-var mu sync.Mutex // Mutex om concurrente toegang te beheren
+var mu sync.Mutex
 
-var nextID uint = 1 // Simuleer auto-increment ID
+var nextID uint = 1
 
 func CreatePayment(c *gin.Context) {
 	var newPayment models.Payment
@@ -34,7 +33,6 @@ func CreatePayment(c *gin.Context) {
 	newPayment.Status = "pending"
 	newPayment.PaymentDate = time.Now().Format("2006-01-02 15:04:05")
 
-	// Voeg de nieuwe betaling toe aan de slice
 	mu.Lock()
 	payments = append(payments, newPayment)
 	mu.Unlock()
@@ -78,15 +76,19 @@ func getNextID() uint {
 func sendEventToEventGrid(payment models.Payment) error {
 	event := []map[string]interface{}{
 		{
-			"id":          fmt.Sprintf("%d", payment.ID),
-			"eventType":   "Payment.Created",
-			"subject":     "new/payment",
-			"eventTime":   time.Now().Format(time.RFC3339),
-			"data":        payment,
-			"dataVersion": "1.0",
+			"id":        "test-1234",                     // Vaste event ID
+			"eventType": "Payment.Created",               // Event type
+			"subject":   "new/payment",                   // Event onderwerp
+			"eventTime": time.Now().Format(time.RFC3339), // Tijdstip van het event
+			"data": map[string]interface{}{
+				"paymentId":   "1234",                 // Vaste payment ID
+				"amount":      100.50,                 // Vaste bedrag
+				"status":      "pending",              // Vaste status
+				"paymentDate": "2025-01-08T12:00:00Z", // Vaste datum van betaling
+			},
+			"dataVersion": "1.0", // Versie van de data
 		},
 	}
-
 	eventJSON, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event: %v", err)
