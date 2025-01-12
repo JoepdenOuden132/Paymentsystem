@@ -22,13 +22,13 @@ var nextID uint = 1
 func CreatePayment(c *gin.Context) {
 	var newPayment models.Payment
 
-	// Valideer de binnenkomende JSON
+	// Keurt de binnenkomende JSON goed
 	if err := c.ShouldBindJSON(&newPayment); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Stel de initiële waarden in
+	// Stelt de initiële waarden in
 	newPayment.ID = getNextID()
 	newPayment.Status = "pending"
 	newPayment.PaymentDate = time.Now().Format("2006-01-02 15:04:05")
@@ -37,6 +37,7 @@ func CreatePayment(c *gin.Context) {
 	payments = append(payments, newPayment)
 	mu.Unlock()
 
+	//begint versturen naar event grid
 	go func() {
 		if err := sendEventToEventGrid(newPayment); err != nil {
 			fmt.Printf("Error sending event to Event Grid: %v\n", err)
