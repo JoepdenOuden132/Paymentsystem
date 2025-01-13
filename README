@@ -1,1 +1,147 @@
-test
+# Payment Processing Service
+
+This repository contains a payment processing service implemented in Go using the Gin framework. The service handles the creation and simulation of payments, updates payment statuses, and sends payment events to Azure Event Grid.
+
+## Features
+
+1. **Payment Creation**:
+   - Accepts incoming payment requests.
+   - Assigns a unique ID and initial status (`pending`) to each payment.
+   - Stores payment details in memory.
+
+2. **Payment Simulation**:
+   - Simulates payment processing by randomly assigning a status (`success` or `failed`) after a delay.
+
+3. **Event Grid Integration**:
+   - Sends payment events to Azure Event Grid asynchronously.
+   - Implements retry logic with a maximum of three attempts.
+
+## GitHub Actions Workflow
+
+This project includes a GitHub Actions workflow for building, pushing, and deploying the payment processing service as a container to Azure Container Instances.
+
+### Workflow Steps
+
+1. **Checkout the Repository**:
+   - The workflow begins by checking out the repository using `actions/checkout@main`.
+
+2. **Azure Login**:
+   - Logs into Azure using `azure/login@v1` with credentials stored in GitHub Secrets (`AZURE_CREDENTIALS`).
+
+3. **Build and Push Docker Image**:
+   - Logs into the Azure Container Registry using `azure/docker-login@v1`.
+   - Builds the Docker image and tags it with the commit SHA.
+   - Pushes the tagged image to the Azure Container Registry.
+
+4. **Deploy to Azure Container Instances**:
+   - Deploys the container to Azure Container Instances using `azure/aci-deploy@v1`.
+   - Configures environment variables for the container:
+     - `EVENT_GRID_ENDPOINT`
+     - `EVENT_GRID_KEY`
+
+### Sample Workflow File
+
+```yaml
+on: [push]
+name: Linux_Container_Workflow
+
+jobs:
+    build-and-deploy:
+        runs-on: ubuntu-latest
+        steps:
+        # checkout the repo
+        - name: 'Checkout GitHub Action'
+          uses: actions/checkout@main
+          
+        - name: 'Login via Azure CLI'
+          uses: azure/login@v1
+          with:
+            creds: ${{ secrets.AZURE_CREDENTIALS }}
+        
+        - name: 'Build and push image'
+          uses: azure/docker-login@v1
+          with:
+            login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+            username: ${{ secrets.REGISTRY_USERNAME }}
+            password: ${{ secrets.REGISTRY_PASSWORD }}
+        - run: |
+            docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/payment2:${{ github.sha }}
+            docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/payment2:${{ github.sha }}
+        - name: 'Deploy to Azure Container Instances'
+          uses: 'azure/aci-deploy@v1'
+          with:
+            resource-group: ${{ secrets.RESOURCE_GROUP }}
+            dns-name-label: ${{ secrets.RESOURCE_GROUP }}${{ github.run_number }}
+            image: ${{ secrets.REGISTRY_LOGIN_SERVER }}/payment2:${{ github.sha }}
+            registry-login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+            registry-username: ${{ secrets.REGISTRY_USERNAME }}
+            registry-password: ${{ secrets.REGISTRY_PASSWORD }}
+            name: aci-payment2
+            location: 'northeurope'
+            environment-variables: |
+              EVENT_GRID_ENDPOINT=${{ secrets.EVENT_GRID_ENDPOINT }}
+              EVENT_GRID_KEY=${{ secrets.EVENT_GRID_KEY }}
+```
+
+## Endpoints
+
+### Create Payment
+**POST /create-payment**
+
+Creates a new payment.
+
+**Request Body**:
+```json
+{
+  "amount": 100.0,
+  "currency": "USD"
+}
+```
+
+**Response**:
+```json
+{
+  "message": "Payment is being processed",
+  "payment_id": 1
+}
+```
+
+## Environment Variables
+
+The service requires the following environment variables:
+
+- `EVENT_GRID_ENDPOINT`: The endpoint URL for Azure Event Grid.
+- `EVENT_GRID_KEY`: The authentication key for Azure Event Grid.
+
+## How It Works
+
+1. A new payment request is received via the `CreatePayment` endpoint.
+2. The payment is added to an in-memory list with a status of `pending`.
+3. An event is sent to Azure Event Grid in the background.
+4. The service simulates payment processing by updating the payment status to either `success` or `failed` after a 5-second delay.
+
+## Error Handling
+
+- All critical operations, such as creating payments, sending events, and updating statuses, are logged.
+- Errors during event sending are logged, and retries are attempted up to three times before returning a failure.
+
+## Dependencies
+
+- [Gin Web Framework](https://github.com/gin-gonic/gin)
+
+## Running the Service
+
+1. Clone the repository:
+   ```sh
+   git clone https://github.com/Paymentsystem/RestAPI2.git
+   ```
+2. Navigate to the project directory:
+   ```sh
+   cd payment-service
+   ```
+3. Set the required environment variables.
+4. Run the service:
+   ```sh
+   go run main.go
+   ```
+
