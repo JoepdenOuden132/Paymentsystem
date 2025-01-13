@@ -35,6 +35,7 @@ func (pm *PaymentManager) CreatePayment(newPayment models.Payment) uint {
 	newPayment.ID = pm.nextID
 	pm.nextID++
 	pm.payments = append(pm.payments, newPayment)
+	log.Printf("Payment created with ID: %d", newPayment.ID)
 	return newPayment.ID
 }
 
@@ -45,6 +46,7 @@ func (pm *PaymentManager) UpdatePaymentStatus(paymentID uint, status string) {
 	for i, payment := range pm.payments {
 		if payment.ID == paymentID {
 			pm.payments[i].Status = status
+			log.Printf("Updated payment ID %d with status: %s", paymentID, status)
 			break
 		}
 	}
@@ -57,6 +59,7 @@ func CreatePayment(c *gin.Context) {
 
 	// Keurt de binnenkomende JSON goed
 	if err := c.ShouldBindJSON(&newPayment); err != nil {
+		log.Printf("Failed to bind JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -84,7 +87,7 @@ func simulatePayment(paymentID uint) {
 	statuses := []string{"success", "failed"}
 	rand.Seed(time.Now().UnixNano())
 	randomStatus := statuses[rand.Intn(len(statuses))]
-
+	log.Printf("Simulating payment ID %d with status: %s", paymentID, randomStatus)
 	paymentManager.UpdatePaymentStatus(paymentID, randomStatus)
 }
 
@@ -106,6 +109,7 @@ func sendEventToEventGrid(payment models.Payment) error {
 	}
 	eventJSON, err := json.Marshal(event)
 	if err != nil {
+		log.Printf("Failed to marshal event: %v", err)
 		return fmt.Errorf("failed to marshal event: %v", err)
 	}
 
@@ -119,6 +123,7 @@ func sendEventToEventGrid(payment models.Payment) error {
 	for i := 0; i < retryCount; i++ {
 		req, err := http.NewRequest("POST", eventGridEndpoint, bytes.NewBuffer(eventJSON))
 		if err != nil {
+			log.Printf("Attempt %d: failed to create request: %v", i+1, err)
 			return fmt.Errorf("failed to create request: %v", err)
 		}
 
@@ -134,10 +139,12 @@ func sendEventToEventGrid(payment models.Payment) error {
 		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted {
+			log.Printf("Successfully sent event to Event Grid on attempt %d", i+1)
 			return nil
 		}
 		log.Printf("Attempt %d: received non-OK response: %v", i+1, resp.Status)
 	}
 
+	log.Printf("Failed to send event after %d attempts", retryCount)
 	return fmt.Errorf("failed to send event after %d attempts", retryCount)
 }
