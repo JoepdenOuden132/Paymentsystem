@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -14,10 +15,42 @@ import (
 	"main.go/models"
 )
 
-var payments []models.Payment
-var mu sync.Mutex
+type PaymentManager struct {
+	payments []models.Payment
+	mu       sync.Mutex
+	nextID   uint
+}
 
-var nextID uint = 1
+func NewPaymentManager() *PaymentManager {
+	return &PaymentManager{
+		payments: []models.Payment{},
+		nextID:   1,
+	}
+}
+
+func (pm *PaymentManager) CreatePayment(newPayment models.Payment) uint {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	newPayment.ID = pm.nextID
+	pm.nextID++
+	pm.payments = append(pm.payments, newPayment)
+	return newPayment.ID
+}
+
+func (pm *PaymentManager) UpdatePaymentStatus(paymentID uint, status string) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	for i, payment := range pm.payments {
+		if payment.ID == paymentID {
+			pm.payments[i].Status = status
+			break
+		}
+	}
+}
+
+var paymentManager = NewPaymentManager()
 
 func CreatePayment(c *gin.Context) {
 	var newPayment models.Payment
@@ -29,24 +62,21 @@ func CreatePayment(c *gin.Context) {
 	}
 
 	// Stelt de initiële waarden in
-	newPayment.ID = getNextID()
 	newPayment.Status = "pending"
 	newPayment.PaymentDate = time.Now().Format("2006-01-02 15:04:05")
 
-	mu.Lock()
-	payments = append(payments, newPayment)
-	mu.Unlock()
+	paymentID := paymentManager.CreatePayment(newPayment)
 
-	//begint versturen naar event grid
+	// Begint versturen naar Event Grid
 	go func() {
 		if err := sendEventToEventGrid(newPayment); err != nil {
-			fmt.Printf("Error sending event to Event Grid: %v\n", err)
+			log.Printf("Error sending event to Event Grid: %v", err)
 		}
 	}()
 
-	go simulatePayment(newPayment.ID)
+	go simulatePayment(paymentID)
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Payment is being processed", "payment_id": newPayment.ID})
+	c.JSON(http.StatusCreated, gin.H{"message": "Payment is being processed", "payment_id": paymentID})
 }
 
 func simulatePayment(paymentID uint) {
@@ -55,39 +85,23 @@ func simulatePayment(paymentID uint) {
 	rand.Seed(time.Now().UnixNano())
 	randomStatus := statuses[rand.Intn(len(statuses))]
 
-	// Update de status van de betaling
-	mu.Lock()
-	for i, payment := range payments {
-		if payment.ID == paymentID {
-			payments[i].Status = randomStatus
-			break
-		}
-	}
-	mu.Unlock()
-}
-
-// Hulpfunctie om het volgende ID te genereren
-func getNextID() uint {
-	mu.Lock()
-	defer mu.Unlock()
-	nextID++
-	return nextID - 1
+	paymentManager.UpdatePaymentStatus(paymentID, randomStatus)
 }
 
 func sendEventToEventGrid(payment models.Payment) error {
 	event := []map[string]interface{}{
 		{
-			"id":        "test-1234",                     // Vaste event ID
-			"eventType": "Payment.Created",               // Event type
-			"subject":   "new/payment",                   // Event onderwerp
-			"eventTime": time.Now().Format(time.RFC3339), // Tijdstip van het event
+			"id":        "test-1234",
+			"eventType": "Payment.Created",
+			"subject":   "new/payment",
+			"eventTime": time.Now().Format(time.RFC3339),
 			"data": map[string]interface{}{
-				"paymentId":   "1234",                 // Vaste payment ID
-				"amount":      100.50,                 // Vaste bedrag
-				"status":      "pending",              // Vaste status
-				"paymentDate": "2025-01-08T12:00:00Z", // Vaste datum van betaling
+				"paymentId":   payment.ID,
+				"amount":      payment.Amount,
+				"status":      payment.Status,
+				"paymentDate": payment.PaymentDate,
 			},
-			"dataVersion": "1.0", // Versie van de data
+			"dataVersion": "1.0",
 		},
 	}
 	eventJSON, err := json.Marshal(event)
@@ -95,30 +109,35 @@ func sendEventToEventGrid(payment models.Payment) error {
 		return fmt.Errorf("failed to marshal event: %v", err)
 	}
 
-	eventGridEndpoint := os.Getenv("EVENT_GRID_ENDPOINT") // Zet dit in je container als environment variable
-	eventGridKey := os.Getenv("EVENT_GRID_KEY")           // Zet dit in je container als environment variable
+	eventGridEndpoint := os.Getenv("EVENT_GRID_ENDPOINT")
+	eventGridKey := os.Getenv("EVENT_GRID_KEY")
 
-	fmt.Println("Event Grid Endpoint:", eventGridEndpoint)
-	fmt.Println("Event Grid Key:", eventGridKey)
+	log.Println("Event Grid Endpoint:", eventGridEndpoint)
+	log.Println("Event Grid Key:", eventGridKey)
 
-	req, err := http.NewRequest("POST", eventGridEndpoint, bytes.NewBuffer(eventJSON))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %v", err)
+	retryCount := 3
+	for i := 0; i < retryCount; i++ {
+		req, err := http.NewRequest("POST", eventGridEndpoint, bytes.NewBuffer(eventJSON))
+		if err != nil {
+			return fmt.Errorf("failed to create request: %v", err)
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("aeg-sas-key", eventGridKey)
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("Attempt %d: failed to send request: %v", i+1, err)
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted {
+			return nil
+		}
+		log.Printf("Attempt %d: received non-OK response: %v", i+1, resp.Status)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("aeg-sas-key", eventGridKey) // Event Grid authenticatie
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("received non-OK response: %v", resp.Status)
-	}
-
-	return nil
+	return fmt.Errorf("failed to send event after %d attempts", retryCount)
 }
