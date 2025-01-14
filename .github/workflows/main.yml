@@ -23,17 +23,19 @@ jobs:
         - run: |
             docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/payment2:${{ github.sha }}
             docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/payment2:${{ github.sha }}
-        - name: 'Deploy to Azure Container Instances'
-          uses: 'azure/aci-deploy@v1'
-          with:
-            resource-group: ${{ secrets.RESOURCE_GROUP }}
-            dns-name-label: "${{ secrets.RESOURCE_GROUP }}1"
-            image: ${{ secrets.REGISTRY_LOGIN_SERVER }}/payment2:${{ github.sha }}
-            registry-login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
-            registry-username: ${{ secrets.REGISTRY_USERNAME }}
-            registry-password: ${{ secrets.REGISTRY_PASSWORD }}
-            name: aci-payment2
-            location: 'northeurope'
-            environment-variables: |
-              EVENT_GRID_ENDPOINT=${{ secrets.EVENT_GRID_ENDPOINT }}
-              EVENT_GRID_KEY=${{ secrets.EVENT_GRID_KEY }}
+          
+        - name: Container creation in Vnet
+          run: |
+            az container create \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --name aci-payment2 \
+            --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/payment2:${{ github.sha }} \
+            --cpu 1 \
+            --memory 2.0 \
+            --vnet ${{ secrets.VNET_NAME }} \
+            --subnet ${{ secrets.SUBNET_NAME }} \
+            --registry-login-server ${{ secrets.REGISTRY_LOGIN_SERVER }} \
+            --registry-username ${{ secrets.REGISTRY_USERNAME }} \
+            --registry-password ${{ secrets.REGISTRY_PASSWORD }} \
+            --location northeurope \
+            --environment-variables EVENT_GRID_ENDPOINT=${{ secrets.EVENT_GRID_ENDPOINT }} EVENT_GRID_KEY=${{ secrets.EVENT_GRID_KEY }}
