@@ -25,7 +25,7 @@ WORKDIR /app
 COPY --from=builder /restapi /app/restapi
 
 # Expose the port on which the application will run
-EXPOSE 8080
+EXPOSE 80
 
 # Define the command to run the application
 CMD ["/app/restapi"]
