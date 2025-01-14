@@ -10,7 +10,7 @@ import (
 func main() {
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"http://RG-paymentsystem21.northeurope.azurecontainer.io.azurewebsites.net"},
+		AllowOrigins: []string{"http://RG-paymentsystem23.northeurope.azurecontainer.io.azurewebsites.net"},
 		AllowMethods: []string{"POST", "GET", "OPTIONS"},
 		AllowHeaders: []string{"Content-Type"},
 	}))
