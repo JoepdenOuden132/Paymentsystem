@@ -17,7 +17,7 @@ func main() {
 
 	gin.SetMode(gin.ReleaseMode)
 	// Routes
-	r.POST("/payments", controllers.CreatePayment)
+	r.POST("/api/payments", controllers.CreatePayment)
 
 	// Start server
 	r.Run(":80")
