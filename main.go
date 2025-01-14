@@ -20,5 +20,5 @@ func main() {
 	r.POST("/payments", controllers.CreatePayment)
 
 	// Start server
-	r.Run(":8080")
+	r.Run(":80")
 }

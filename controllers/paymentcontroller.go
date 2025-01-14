@@ -94,7 +94,7 @@ func simulatePayment(paymentID uint) {
 func sendEventToEventGrid(payment models.Payment) error {
 	event := []map[string]interface{}{
 		{
-			"id":        "test-1234",
+			"id":        "20",
 			"eventType": "Payment.Created",
 			"subject":   "new/payment",
 			"eventTime": time.Now().Format(time.RFC3339),
