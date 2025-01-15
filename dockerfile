@@ -18,6 +18,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /restapi && ls -lah /resta
 # Use a minimal image for the final runtime environment
 FROM debian:bullseye-slim
 
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
 # Set the working directory in the runtime container
 WORKDIR /app
 
