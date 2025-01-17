@@ -146,5 +146,5 @@ func sendEventToEventGrid(payment models.Payment) error {
 	}
 
 	// log.Printf("Failed to send event after %d attempts", retryCount)
-	return fmt.Errorf("Succes!", retryCount)
+	return nil
 }
